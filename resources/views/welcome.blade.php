@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Inhaalvaccinatie Adviseur — Jeugdarts KNMG</title>
-<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="{{ asset('css/styles.css') }}" />
 </head>
 <body>
 <header class="topbar">
@@ -116,8 +116,8 @@
   <small>Bronnen: RIVM Leidraad inhaalvaccinaties 2024 · Rijksvaccinatieprogramma · WHO TBC-risicolanden</small>
 </footer>
 
-<script src="data.js"></script>
-<script src="scheduler.js"></script>
-<script src="app.js"></script>
+<script src="{{ asset('js/data.js') }}"></script>
+<script src="{{ asset('js/scheduler.js') }}"></script>
+<script src="{{ asset('js/app.js') }}"></script>
 </body>
 </html>
