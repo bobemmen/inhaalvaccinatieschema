@@ -2,6 +2,7 @@
     "name": "bobemmen/inhaalvaccinatieschema",
     "description": "Inhaalvaccinatie Adviseur — Jeugdarts KNMG",
     "keywords": ["vaccinatie", "rivm", "jeugdarts"],
+    "type": "project",
     "license": "MIT",
     "require": {
         "php": "^8.2",
