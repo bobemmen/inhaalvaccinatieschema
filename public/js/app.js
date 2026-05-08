@@ -156,16 +156,26 @@
   });
 
   // ── Toedieningsweg per vaccin ─────────────────────────────────────────
+  // Bronnen:
+  //   • RIVM LCI Uitvoeringsregels Rijksvaccinatieprogramma
+  //     (https://lci.rivm.nl/richtlijnen/rijksvaccinatieprogramma)
+  //   • Actuele bijsluiterteksten (CBG/EMA SmPC) per vaccin
+  //   • WHO Best Practices for Injections and Related Procedures (2010)
+  // Algemene principes:
+  //   • Zuigelingen (< 12 mnd): i.m. in vastus lateralis (anterolateraal bovenbeen)
+  //   • Peuter/kind/volwassene: i.m. in deltoid
+  //   • Levende vaccins BMR en varicella: traditioneel s.c.; BCG strikt i.d.
+  // Eindverantwoordelijkheid: raadpleeg altijd de actuele bijsluiter en RIVM-richtlijn.
   const ADMIN_ROUTE = {
-    'DKTP-Hib-HepB': 'i.m. · anterolateraal bovenbeen (< 12 mnd) of deltoid',
+    'DKTP-Hib-HepB': 'i.m. · vastus lateralis (anterolateraal bovenbeen) bij zuigelingen; deltoid vanaf ca. 12 mnd',
     'DKTP':           'i.m. · deltoid',
     'HepB-mono':      'i.m. · deltoid',
-    'MenB':           'i.m. · deltoid of anterolateraal bovenbeen',
+    'MenB':           'i.m. · vastus lateralis (anterolateraal bovenbeen)',
     'BMR':            's.c. · bovenarm',
-    'MenACWY':        'i.m. · deltoid',
-    'Pneumokokken':   'i.m. · anterolateraal bovenbeen (< 12 mnd) of deltoid',
+    'MenACWY':        'i.m. · deltoid (≥ 12 mnd) of vastus lateralis',
+    'Pneumokokken':   'i.m. · vastus lateralis (anterolateraal bovenbeen) bij zuigelingen; deltoid vanaf ca. 12 mnd',
     'HPV':            'i.m. · deltoid',
-    'BCG':            'i.d. · linker bovenarm',
+    'BCG':            'i.d. · linker bovenarm (insertie m. deltoideus)',
     'Hib-mono':       'i.m. · deltoid',
     'Varicella':      's.c. · bovenarm',
     'Rotavirus':      'oraal (niet injecteren)',
