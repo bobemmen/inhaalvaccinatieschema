@@ -114,6 +114,8 @@
       `;
       const vBox = block.querySelector('.visit-vaccines');
       for (const it of visit.items) {
+        const wrap = document.createElement('div');
+        wrap.className = 'vaccine-wrap';
         const line = document.createElement('div');
         line.className = 'vaccine-line';
         line.innerHTML = `
@@ -121,12 +123,48 @@
             <div class="vacc-name">${escapeHtml(it.label)}</div>
             <div class="vacc-meta">Dosis ${it.doseNum} van ${it.totalDoses} · ${visit.priority.label}</div>
           </div>
-          <button type="button" data-explain="${it.code}" data-dose="${it.doseNum}">Uitleg &amp; advies</button>
+          <button type="button" class="explain-btn">Uitleg &amp; advies</button>
         `;
-        line.querySelector('button').addEventListener('click', () => explainVaccine(it, res, input));
-        vBox.appendChild(line);
+        const expl = document.createElement('div');
+        expl.className = 'vaccine-explanation';
+        const btn = line.querySelector('button');
+        btn.addEventListener('click', () => toggleExplanation(it, res, input, btn, line, expl));
+        wrap.appendChild(line);
+        wrap.appendChild(expl);
+        vBox.appendChild(wrap);
       }
       out.appendChild(block);
+    }
+
+    // PDF-knop activeren
+    const pdfBtn = $('download-pdf');
+    if (pdfBtn) {
+      pdfBtn.disabled = false;
+      pdfBtn.title = 'Download het schema als PDF';
+    }
+  }
+
+  function toggleExplanation(item, res, input, btn, line, expl) {
+    const isOpen = expl.classList.contains('visible');
+    if (isOpen) {
+      expl.classList.remove('visible');
+      line.classList.remove('expanded');
+      btn.classList.remove('active');
+      btn.textContent = 'Uitleg & advies';
+      return;
+    }
+    expl.textContent = buildDeterministicExplanation(item, res, input);
+    expl.classList.add('visible');
+    line.classList.add('expanded');
+    btn.classList.add('active');
+    btn.textContent = 'Verberg uitleg';
+
+    if (getApiKey()) {
+      const aiBlock = document.createElement('div');
+      aiBlock.className = 'ai-block';
+      aiBlock.innerHTML = '<div class="ai-label">AI-toelichting (Claude)</div><div class="ai-body">…</div>';
+      expl.appendChild(aiBlock);
+      streamFromAnthropic(buildPromptForVaccine(item, res, input), aiBlock.querySelector('.ai-body'), true);
     }
   }
 
@@ -147,16 +185,6 @@
     chatLog.appendChild(div);
     chatLog.scrollTop = chatLog.scrollHeight;
     return div.querySelector('.body');
-  }
-
-  function explainVaccine(item, res, input) {
-    const header = `${item.label} — dosis ${item.doseNum}/${item.totalDoses} (${item.priority.label})`;
-    addMsg('user', `Uitleg & advies: ${header}`);
-    const det = buildDeterministicExplanation(item, res, input);
-    const target = addMsg('assistant', det);
-    if (getApiKey()) {
-      streamFromAnthropic(buildPromptForVaccine(item, res, input), target);
-    }
   }
 
   function buildDeterministicExplanation(item, res, input) {
@@ -245,10 +273,11 @@
     }
   });
 
-  async function streamFromAnthropic(userPrompt, targetEl) {
+  async function streamFromAnthropic(userPrompt, targetEl, replace = false) {
     const key = getApiKey();
     if (!key) return;
-    targetEl.textContent += '\n\n— AI-toelichting —\n';
+    if (replace) targetEl.textContent = '';
+    else targetEl.textContent += '\n\n— AI-toelichting —\n';
     try {
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -271,9 +300,19 @@
       const data = await resp.json();
       const text = (data.content || []).map((b) => b.text || '').join('');
       targetEl.textContent += text;
-      chatLog.scrollTop = chatLog.scrollHeight;
+      if (chatLog.contains(targetEl)) chatLog.scrollTop = chatLog.scrollHeight;
     } catch (err) {
       targetEl.textContent += `\n[Netwerkfout: ${err.message}]`;
     }
   }
+
+  // ----- PDF-export -----
+  $('download-pdf').addEventListener('click', () => {
+    if (!lastResult || !lastInput) return;
+    if (!window.jspdf || !window.PDFExport) {
+      alert('PDF-bibliotheek niet geladen. Probeer de pagina te verversen.');
+      return;
+    }
+    window.PDFExport.generate(lastResult, lastInput, COUNTRIES);
+  });
 })();
