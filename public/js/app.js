@@ -29,6 +29,23 @@
     checklist.appendChild(row);
   }
 
+  // ----- Datumhulpers -----
+  function dutchDateToIso(val) {
+    if (!val) return '';
+    const m = val.trim().match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+    if (!m) return '';
+    return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  }
+
+  document.querySelectorAll('.date-input').forEach((el) => {
+    el.addEventListener('input', () => {
+      let v = el.value.replace(/\D/g, '');
+      if (v.length > 2) v = v.slice(0, 2) + '-' + v.slice(2);
+      if (v.length > 5) v = v.slice(0, 5) + '-' + v.slice(5);
+      el.value = v.slice(0, 10);
+    });
+  });
+
   const noDocs = $('noDocs');
   noDocs.addEventListener('change', () => {
     checklist.classList.toggle('disabled', noDocs.checked);
@@ -47,11 +64,11 @@
 
     const input = {
       name: fd.get('name'),
-      dob: fd.get('dob'),
+      dob: dutchDateToIso(fd.get('dob')),
       country: fd.get('country'),
-      arrival: fd.get('arrival'),
+      arrival: dutchDateToIso(fd.get('arrival')),
       sex: fd.get('sex'),
-      visitDate: fd.get('visitDate') || new Date().toISOString().slice(0, 10),
+      visitDate: dutchDateToIso(fd.get('visitDate')) || new Date().toISOString().slice(0, 10),
       noDocs: noDocs.checked,
       documented,
       prematuur: !!fd.get('prematuur'),
@@ -136,16 +153,27 @@
       out.appendChild(block);
     }
 
-    // PDF-knop activeren
+    // PDF-knop tonen
     const pdfBtn = $('download-pdf');
-    if (pdfBtn) {
-      pdfBtn.disabled = false;
-      pdfBtn.title = 'Download het schema als PDF';
-    }
+    if (pdfBtn) pdfBtn.style.display = 'inline-block';
+  }
+
+  function closeAllExplanations(except) {
+    document.querySelectorAll('.vaccine-explanation.visible').forEach((el) => {
+      if (el === except) return;
+      el.classList.remove('visible');
+      const line = el.previousElementSibling;
+      if (line) {
+        line.classList.remove('expanded');
+        const b = line.querySelector('.explain-btn');
+        if (b) { b.classList.remove('active'); b.textContent = 'Uitleg & advies'; }
+      }
+    });
   }
 
   function toggleExplanation(item, res, input, btn, line, expl) {
     const isOpen = expl.classList.contains('visible');
+    closeAllExplanations(isOpen ? null : expl);
     if (isOpen) {
       expl.classList.remove('visible');
       line.classList.remove('expanded');
@@ -153,19 +181,21 @@
       btn.textContent = 'Uitleg & advies';
       return;
     }
-    expl.textContent = buildDeterministicExplanation(item, res, input);
+    if (!expl.dataset.loaded) {
+      expl.textContent = buildDeterministicExplanation(item, res, input);
+      expl.dataset.loaded = '1';
+      if (getApiKey()) {
+        const aiBlock = document.createElement('div');
+        aiBlock.className = 'ai-block';
+        aiBlock.innerHTML = '<div class="ai-label">AI-toelichting (Claude)</div><div class="ai-body">…</div>';
+        expl.appendChild(aiBlock);
+        streamFromAnthropic(buildPromptForVaccine(item, res, input), aiBlock.querySelector('.ai-body'), true);
+      }
+    }
     expl.classList.add('visible');
     line.classList.add('expanded');
     btn.classList.add('active');
     btn.textContent = 'Verberg uitleg';
-
-    if (getApiKey()) {
-      const aiBlock = document.createElement('div');
-      aiBlock.className = 'ai-block';
-      aiBlock.innerHTML = '<div class="ai-label">AI-toelichting (Claude)</div><div class="ai-body">…</div>';
-      expl.appendChild(aiBlock);
-      streamFromAnthropic(buildPromptForVaccine(item, res, input), aiBlock.querySelector('.ai-body'), true);
-    }
   }
 
   function escapeHtml(s) {
