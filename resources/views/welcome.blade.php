@@ -82,7 +82,10 @@
   </section>
 
   <section class="panel schedule-panel" aria-labelledby="schedule-title">
-    <h2 id="schedule-title">Inhaalschema</h2>
+    <div class="schedule-head">
+      <h2 id="schedule-title">Inhaalschema</h2>
+      <button type="button" id="download-pdf" class="ghost" disabled title="Genereer eerst een schema">⬇ Download PDF</button>
+    </div>
     <div id="schedule-summary" class="summary"></div>
     <div id="schedule-output" class="schedule-output">
       <p class="empty">Nog geen schema gegenereerd. Vul de patiëntgegevens in en klik op <em>Schema genereren</em>.</p>
@@ -116,8 +119,10 @@
   <small>Bronnen: RIVM Leidraad inhaalvaccinaties 2024 · Rijksvaccinatieprogramma · WHO TBC-risicolanden</small>
 </footer>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="{{ asset('js/data.js') }}"></script>
 <script src="{{ asset('js/scheduler.js') }}"></script>
+<script src="{{ asset('js/pdf.js') }}"></script>
 <script src="{{ asset('js/app.js') }}"></script>
 </body>
 </html>
