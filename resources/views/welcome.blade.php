@@ -135,6 +135,33 @@
               </div>
             </div>
 
+            <!-- Card 4: Schema-instellingen -->
+            <div class="md3-card" style="margin-top:14px">
+              <div class="md3-card-header">
+                <div class="md3-card-num">4</div>
+                <div class="md3-card-titles">
+                  <div class="md3-card-title">Schema-instellingen</div>
+                  <div class="md3-card-subtitle">RIVM: 2 prikken per consult is praktijkadvies (max 3)</div>
+                </div>
+              </div>
+              <div class="md3-card-body">
+                <div class="md3-field">
+                  <label class="md3-label">Max prikken per consult</label>
+                  <div class="seg-control" role="radiogroup" aria-label="Max prikken per consult">
+                    <input type="radio" name="maxPerVisit" id="mpv-1" value="1" />
+                    <label for="mpv-1" title="1 prik per consult — bv. bij angst of vasovagale voorgeschiedenis">1 prik</label>
+                    <input type="radio" name="maxPerVisit" id="mpv-2" value="2" checked />
+                    <label for="mpv-2" title="RIVM-praktijkadvies: 2 prikken per consult">2 prikken</label>
+                    <input type="radio" name="maxPerVisit" id="mpv-3" value="3" />
+                    <label for="mpv-3" title="Max. 3 prikken — RIVM-bovengrens, alleen bij goede tolerantie">3 prikken</label>
+                  </div>
+                  <div class="md3-check-sub" style="margin-top:6px">
+                    Bij overflow worden vaccins doorgeschoven naar het volgende bezoek conform RIVM-leidraad inhaalvaccinaties 2024.
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="input-footer">
               <button type="submit" class="md3-btn md3-btn-fill" style="flex:1">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.37"/></svg>
