@@ -37,13 +37,30 @@
     return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
   }
 
-  document.querySelectorAll('.date-input').forEach((el) => {
+  // Auto-format dd-mm-jjjj tijdens typen (werkt naast Flatpickr's allowInput)
+  function autoMaskDate(el) {
     el.addEventListener('input', () => {
-      let v = el.value.replace(/\D/g, '');
-      if (v.length > 2) v = v.slice(0, 2) + '-' + v.slice(2);
-      if (v.length > 5) v = v.slice(0, 5) + '-' + v.slice(5);
-      el.value = v.slice(0, 10);
+      const cursorAtEnd = el.selectionStart === el.value.length;
+      let v = el.value.replace(/\D/g, '').slice(0, 8);
+      if (v.length > 4) v = v.slice(0, 2) + '-' + v.slice(2, 4) + '-' + v.slice(4);
+      else if (v.length > 2) v = v.slice(0, 2) + '-' + v.slice(2);
+      el.value = v;
+      if (cursorAtEnd) el.setSelectionRange(v.length, v.length);
     });
+  }
+
+  // Initialiseer Flatpickr (grafische kalender) op alle .date-input velden
+  document.querySelectorAll('.date-input').forEach((el) => {
+    autoMaskDate(el);
+    if (window.flatpickr) {
+      window.flatpickr(el, {
+        dateFormat: 'd-m-Y',
+        allowInput: true,
+        locale: (window.flatpickr.l10ns && window.flatpickr.l10ns.nl) || 'default',
+        maxDate: el.name === 'dob' ? 'today' : undefined,
+        disableMobile: false,
+      });
+    }
   });
 
   const noDocs = $('noDocs');
@@ -145,7 +162,11 @@
         const expl = document.createElement('div');
         expl.className = 'vaccine-explanation';
         const btn = line.querySelector('button');
-        btn.addEventListener('click', () => toggleExplanation(it, res, input, btn, line, expl));
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleExplanation(it, res, input, btn, line, expl);
+        });
         wrap.appendChild(line);
         wrap.appendChild(expl);
         vBox.appendChild(wrap);
@@ -158,44 +179,53 @@
     if (pdfBtn) pdfBtn.style.display = 'inline-block';
   }
 
-  function closeAllExplanations(except) {
-    document.querySelectorAll('.vaccine-explanation.visible').forEach((el) => {
-      if (el === except) return;
-      el.classList.remove('visible');
-      const line = el.previousElementSibling;
-      if (line) {
-        line.classList.remove('expanded');
-        const b = line.querySelector('.explain-btn');
-        if (b) { b.classList.remove('active'); b.textContent = 'Uitleg & advies'; }
-      }
-    });
+  function closeExplanation(expl) {
+    const wrap = expl.parentElement;
+    const line = wrap ? wrap.querySelector('.vaccine-line') : null;
+    const b = line ? line.querySelector('.explain-btn') : null;
+    expl.classList.remove('visible');
+    if (line) line.classList.remove('expanded');
+    if (b) {
+      b.classList.remove('active');
+      b.textContent = 'Uitleg & advies';
+    }
   }
 
-  function toggleExplanation(item, res, input, btn, line, expl) {
-    const isOpen = expl.classList.contains('visible');
-    closeAllExplanations(isOpen ? null : expl);
-    if (isOpen) {
-      expl.classList.remove('visible');
-      line.classList.remove('expanded');
-      btn.classList.remove('active');
-      btn.textContent = 'Uitleg & advies';
-      return;
+  function openExplanation(item, res, input, btn, line, expl) {
+    // Bouw inhoud altijd opnieuw op vanaf scratch (zo voorkomen we stapeling)
+    expl.innerHTML = '';
+    const det = document.createElement('div');
+    det.className = 'det-block';
+    det.textContent = buildDeterministicExplanation(item, res, input);
+    expl.appendChild(det);
+
+    if (getApiKey()) {
+      const aiBlock = document.createElement('div');
+      aiBlock.className = 'ai-block';
+      aiBlock.innerHTML = '<div class="ai-label">AI-toelichting (Claude)</div><div class="ai-body">…</div>';
+      expl.appendChild(aiBlock);
+      streamFromAnthropic(buildPromptForVaccine(item, res, input), aiBlock.querySelector('.ai-body'), true);
     }
-    if (!expl.dataset.loaded) {
-      expl.textContent = buildDeterministicExplanation(item, res, input);
-      expl.dataset.loaded = '1';
-      if (getApiKey()) {
-        const aiBlock = document.createElement('div');
-        aiBlock.className = 'ai-block';
-        aiBlock.innerHTML = '<div class="ai-label">AI-toelichting (Claude)</div><div class="ai-body">…</div>';
-        expl.appendChild(aiBlock);
-        streamFromAnthropic(buildPromptForVaccine(item, res, input), aiBlock.querySelector('.ai-body'), true);
-      }
-    }
+
     expl.classList.add('visible');
     line.classList.add('expanded');
     btn.classList.add('active');
     btn.textContent = 'Verberg uitleg';
+  }
+
+  function toggleExplanation(item, res, input, btn, line, expl) {
+    const isOpen = expl.classList.contains('visible');
+
+    // Sluit ALLE andere open uitklappen, behalve deze
+    document.querySelectorAll('.vaccine-explanation.visible').forEach((el) => {
+      if (el !== expl) closeExplanation(el);
+    });
+
+    if (isOpen) {
+      closeExplanation(expl);
+    } else {
+      openExplanation(item, res, input, btn, line, expl);
+    }
   }
 
   function escapeHtml(s) {
