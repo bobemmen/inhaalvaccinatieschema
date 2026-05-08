@@ -71,15 +71,19 @@
     return `${y} jr ${m} mnd`;
   }
 
-  // Auto-masker: 01012001 → 01-01-2001 direct tijdens typen
+  // Auto-masker: 01012001 → 01-01-2001 direct tijdens typen.
+  // Controle op e.isTrusted: Flatpickr vuurt synthetische input-events (isTrusted=false)
+  // die we overslaan om te voorkomen dat het masker een al-geformatteerde waarde sloopt.
   function initDateMask(el) {
-    el.addEventListener('input', () => {
-      const pos = el.selectionStart;
-      let v = el.value.replace(/\D/g, '').slice(0, 8);
-      if (v.length > 4) v = `${v.slice(0,2)}-${v.slice(2,4)}-${v.slice(4)}`;
-      else if (v.length > 2) v = `${v.slice(0,2)}-${v.slice(2)}`;
+    el.addEventListener('input', (e) => {
+      if (!e.isTrusted) return;
+      const raw = el.value.replace(/\D/g, '').slice(0, 8);
+      let v;
+      if (raw.length > 4) v = `${raw.slice(0,2)}-${raw.slice(2,4)}-${raw.slice(4)}`;
+      else if (raw.length > 2) v = `${raw.slice(0,2)}-${raw.slice(2)}`;
+      else v = raw;
       el.value = v;
-      try { el.setSelectionRange(Math.min(pos, v.length), Math.min(pos, v.length)); } catch(_) {}
+      try { el.setSelectionRange(v.length, v.length); } catch(_) {}
     });
   }
 
