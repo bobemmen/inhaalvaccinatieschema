@@ -1,13 +1,14 @@
-// UI-koppeling: form, schema-render, chat (deterministisch + optionele Anthropic API).
+// Inhaalvaccinatie Adviseur — UI, tabel-renderer, Flatpickr, PDF.
 
 (function () {
   const { VACCINES, COUNTRIES } = window.RIVM_DATA;
   const $ = (id) => document.getElementById(id);
 
   let lastResult = null;
-  let lastInput = null;
+  let lastInput  = null;
+  let openRowId  = null; // id van de momenteel open adviesrij
 
-  // ----- Init form -----
+  // ── Landen dropdown ───────────────────────────────────────────────────
   const countrySel = $('country-select');
   for (const c of COUNTRIES) {
     const o = document.createElement('option');
@@ -15,43 +16,75 @@
     countrySel.appendChild(o);
   }
 
+  // ── Vaccinatie-checklist ──────────────────────────────────────────────
   const checklist = $('vaccine-checklist');
   for (const v of VACCINES) {
-    const row = document.createElement('div');
-    row.className = 'vacc-row';
-    row.innerHTML = `
-      <label class="check" style="margin:0;">
-        <input type="checkbox" data-vacc="${v.code}" />
-        <span>${v.label}</span>
-      </label>
-      <input type="number" min="0" max="6" value="0" class="doses" data-vacc-doses="${v.code}" title="aantal gedocumenteerde doses" />
+    const label = document.createElement('label');
+    label.className = 'md3-check';
+    label.innerHTML = `
+      <input type="checkbox" data-vacc="${escHtml(v.code)}" />
+      <div>
+        <div class="md3-check-label">${escHtml(v.label)}</div>
+        <div class="md3-check-sub">
+          <input type="number" min="0" max="6" value="0" data-vacc-doses="${escHtml(v.code)}"
+                 style="width:38px;padding:1px 4px;font-size:.8rem;border:1px solid var(--md-outline-variant);border-radius:4px;background:var(--md-surface)"
+                 title="Gedocumenteerde doses" />
+          doses
+        </div>
+      </div>
     `;
-    checklist.appendChild(row);
+    checklist.appendChild(label);
   }
 
-  // ----- Datumhulpers -----
+  $('noDocs').addEventListener('change', function () {
+    checklist.querySelectorAll('input').forEach((el) => {
+      el.disabled = this.checked;
+      el.closest('.md3-check').style.opacity = this.checked ? '.45' : '1';
+    });
+  });
+
+  // ── Datumhulpers ──────────────────────────────────────────────────────
   function dutchDateToIso(val) {
     if (!val) return '';
     const m = val.trim().match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
     if (!m) return '';
     return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
   }
+  function isoToDutch(iso) {
+    if (!iso) return '';
+    const [y, mo, d] = iso.split('-');
+    return `${d}-${mo}-${y}`;
+  }
+  function addMonthsToDate(isoDate, months) {
+    const d = new Date(isoDate);
+    d.setMonth(d.getMonth() + months);
+    return d.toISOString().slice(0, 10);
+  }
+  function ageLabel(dobIso, refIso) {
+    const dob = new Date(dobIso), ref = new Date(refIso);
+    let y = ref.getFullYear() - dob.getFullYear();
+    let m = ref.getMonth() - dob.getMonth();
+    if (ref.getDate() < dob.getDate()) m -= 1;
+    if (m < 0) { y -= 1; m += 12; }
+    if (y === 0) return `${m} mnd`;
+    if (m === 0) return `${y} jr`;
+    return `${y} jr ${m} mnd`;
+  }
 
-  // Auto-format dd-mm-jjjj tijdens typen (werkt naast Flatpickr's allowInput)
-  function autoMaskDate(el) {
+  // Auto-masker: 01012001 → 01-01-2001 direct tijdens typen
+  function initDateMask(el) {
     el.addEventListener('input', () => {
-      const cursorAtEnd = el.selectionStart === el.value.length;
+      const pos = el.selectionStart;
       let v = el.value.replace(/\D/g, '').slice(0, 8);
-      if (v.length > 4) v = v.slice(0, 2) + '-' + v.slice(2, 4) + '-' + v.slice(4);
-      else if (v.length > 2) v = v.slice(0, 2) + '-' + v.slice(2);
+      if (v.length > 4) v = `${v.slice(0,2)}-${v.slice(2,4)}-${v.slice(4)}`;
+      else if (v.length > 2) v = `${v.slice(0,2)}-${v.slice(2)}`;
       el.value = v;
-      if (cursorAtEnd) el.setSelectionRange(v.length, v.length);
+      try { el.setSelectionRange(Math.min(pos, v.length), Math.min(pos, v.length)); } catch(_) {}
     });
   }
 
-  // Initialiseer Flatpickr (grafische kalender) op alle .date-input velden
   document.querySelectorAll('.date-input').forEach((el) => {
-    autoMaskDate(el);
+    initDateMask(el);
     if (window.flatpickr) {
       window.flatpickr(el, {
         dateFormat: 'd-m-Y',
@@ -63,11 +96,7 @@
     }
   });
 
-  const noDocs = $('noDocs');
-  noDocs.addEventListener('change', () => {
-    checklist.classList.toggle('disabled', noDocs.checked);
-  });
-
+  // ── Formulier submit ──────────────────────────────────────────────────
   $('patient-form').addEventListener('submit', (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -75,269 +104,262 @@
     checklist.querySelectorAll('input[data-vacc]').forEach((cb) => {
       const code = cb.dataset.vacc;
       const dosesEl = checklist.querySelector(`[data-vacc-doses="${code}"]`);
-      const n = cb.checked ? Math.max(1, parseInt(dosesEl.value || '1', 10)) : parseInt(dosesEl.value || '0', 10);
+      const n = cb.checked ? Math.max(1, parseInt(dosesEl.value || '1', 10))
+                           : parseInt(dosesEl.value || '0', 10);
       if (n > 0) documented[code] = n;
     });
 
-    const input = {
-      name: fd.get('name'),
-      dob: dutchDateToIso(fd.get('dob')),
-      country: fd.get('country'),
-      arrival: dutchDateToIso(fd.get('arrival')),
-      sex: fd.get('sex'),
+    lastInput = {
+      name:      fd.get('name') || '',
+      dob:       dutchDateToIso(fd.get('dob')),
+      sex:       fd.get('sex') || 'X',
+      country:   fd.get('country'),
+      arrival:   dutchDateToIso(fd.get('arrival')),
       visitDate: dutchDateToIso(fd.get('visitDate')) || new Date().toISOString().slice(0, 10),
-      noDocs: noDocs.checked,
+      noDocs:    !!$('noDocs').checked,
       documented,
       prematuur: !!fd.get('prematuur'),
-      immuun: !!fd.get('immuun'),
-      zwanger: !!fd.get('zwanger'),
-      hivContact: !!fd.get('hivContact'),
-      aspleen: !!fd.get('aspleen'),
-      hepBmoeder: !!fd.get('hepBmoeder'),
-      notes: fd.get('notes') || '',
+      immuun:    !!fd.get('immuun'),
+      zwanger:   !!fd.get('zwanger'),
+      hivContact:!!fd.get('hivContact'),
+      aspleen:   !!fd.get('aspleen'),
+      hepBmoeder:!!fd.get('hepBmoeder'),
+      notes:     fd.get('notes') || '',
     };
 
-    lastInput = input;
-    lastResult = window.Scheduler.generate(input);
-    renderSchedule(lastResult, input);
+    lastResult = window.Scheduler.generate(lastInput);
+    renderSchedule(lastResult, lastInput);
   });
 
-  // ----- Render -----
+  // Reset: verberg schema
+  $('patient-form').addEventListener('reset', () => {
+    lastResult = null; lastInput = null; openRowId = null;
+    $('schedule-empty').style.display = '';
+    $('schedule-ready').style.display = 'none';
+    $('patient-strip').classList.remove('visible');
+    $('download-pdf').style.display = 'none';
+  });
+
+  // ── Toedieningsweg per vaccin ─────────────────────────────────────────
+  const ADMIN_ROUTE = {
+    'DKTP-Hib-HepB': 'i.m. · bovenbeen / deltoid',
+    'DTP-IPV':        'i.m. · deltoid',
+    'HepB-mono':      'i.m. · deltoid',
+    'BMR':            's.c. · bovenarm',
+    'MenACWY':        'i.m. · deltoid',
+    'Pneumokokken':   'i.m. · bovenbeen / deltoid',
+    'HPV':            'i.m. · deltoid',
+    'BCG':            'i.d. · linker bovenarm',
+    'Varicella':      's.c. · bovenarm',
+    'Rotavirus':      'oraal',
+  };
+
+  // ── Prioriteit → chip class ───────────────────────────────────────────
+  const PRI_CHIP = { direct: 'chip-direct', '1m': 'chip-1m', '3m': 'chip-3m', '6m': 'chip-6m' };
+
+  // ── Render schedule ───────────────────────────────────────────────────
   function renderSchedule(res, input) {
-    const summary = $('schedule-summary');
-    summary.classList.add('visible');
-    const ageY = res.patient.ageYears, ageM = res.patient.ageMonths;
-    const ageStr = ageY >= 2 ? `${ageY} jaar` : `${ageM} maanden`;
+    // Schakel zichtbaarheid
+    $('schedule-empty').style.display = 'none';
+    const ready = $('schedule-ready');
+    ready.style.display = 'flex';
+
+    // Patient strip
+    const strip = $('patient-strip');
+    strip.classList.add('visible');
     const country = COUNTRIES.find((c) => c.code === input.country);
-    summary.innerHTML = `
-      <strong>${escapeHtml(input.name || 'Patiënt')}</strong>
-      · ${ageStr} · herkomst: ${escapeHtml(country?.name || '?')}
-      · TBC-risicoland: <strong>${res.patient.tbcRisk ? 'ja' : 'nee'}</strong>
-      · ${res.visits.length} bezoek${res.visits.length === 1 ? '' : 'en'}, ${res.items.length} dosis/doses gepland.
-    `;
+    const sexLabel = { F: '♀', M: '♂', X: '⚲' }[input.sex] || '';
+    $('ps-name').textContent = input.name || '—';
+    $('ps-meta').textContent = [
+      input.dob ? `geb. ${isoToDutch(input.dob)}` : '',
+      sexLabel,
+      country ? country.name : '',
+      res.patient.tbcRisk ? 'TBC-risicoland' : '',
+    ].filter(Boolean).join(' · ');
+    $('download-pdf').style.display = 'inline-flex';
 
-    const out = $('schedule-output');
-    out.innerHTML = '';
+    // KPI strip
+    const nVisits = res.visits.length;
+    const nItems  = res.items.length;
+    const distinctAntigens = [...new Set(res.items.map((it) => it.code))].length;
+    const lastVisit = res.visits.length
+      ? addMonthsToDate(input.visitDate, res.visits[res.visits.length - 1].priority.offsetMonths)
+      : input.visitDate;
 
+    $('kpi-visits').textContent     = nVisits;
+    $('kpi-visits-sub').textContent = `verspreid over ${res.visits[res.visits.length-1]?.priority.offsetMonths || 0} mnd`;
+    $('kpi-doses').textContent      = nItems;
+    $('kpi-doses-sub').textContent  = `${distinctAntigens} antigeen${distinctAntigens===1?'':'en'}`;
+    $('kpi-start').textContent      = isoToDutch(input.visitDate);
+    $('kpi-start-sub').textContent  = 'eerste consult';
+    $('kpi-end').textContent        = isoToDutch(lastVisit);
+    $('kpi-end-sub').textContent    = input.dob ? `leeftijd: ${ageLabel(input.dob, lastVisit)}` : '';
+
+    // Waarschuwingen
+    const warnEl = $('schedule-warnings');
     if (res.warnings.length) {
-      const w = document.createElement('div');
-      w.className = 'warnings';
-      w.innerHTML = `<strong>Klinische aandachtspunten</strong><ul>${res.warnings.map((m) => `<li>${escapeHtml(m)}</li>`).join('')}</ul>`;
-      out.appendChild(w);
+      warnEl.style.display = 'block';
+      warnEl.innerHTML = `<strong style="font-size:12px;color:var(--md-on-warn-container)">Klinische aandachtspunten</strong><ul>${res.warnings.map((w) => `<li>${escHtml(w)}</li>`).join('')}</ul>`;
+    } else {
+      warnEl.style.display = 'none';
     }
 
-    if (!res.visits.length) {
-      const p = document.createElement('p');
-      p.className = 'empty';
-      p.textContent = 'Geen aanvullende inhaalvaccinaties geïndiceerd op basis van de ingevoerde gegevens.';
-      out.appendChild(p);
-      return;
-    }
+    // Tabel body
+    const tbody = $('schedule-tbody');
+    tbody.innerHTML = '';
+    openRowId = null;
 
+    let rowIdx = 0;
     let visitNum = 0;
     for (const visit of res.visits) {
       visitNum++;
-      const block = document.createElement('div');
-      block.className = 'visit-block';
-      block.innerHTML = `
-        <div class="visit-header">
-          <span><strong>Bezoek ${visitNum}</strong> · ${visit.items.length} vaccin${visit.items.length === 1 ? '' : 's'}</span>
-          <span class="pri-badge ${visit.priority.cssClass}">${visit.priority.label}</span>
-        </div>
-        <div class="visit-vaccines"></div>
-      `;
-      const vBox = block.querySelector('.visit-vaccines');
+      const visitDate = addMonthsToDate(input.visitDate, visit.priority.offsetMonths);
+      const visitAge  = input.dob ? ageLabel(input.dob, visitDate) : '—';
+
+      // Consult-scheidingsrij
+      const consultTr = document.createElement('tr');
+      consultTr.className = 'row-consult';
+      consultTr.innerHTML = `<td colspan="7">Bezoek ${visitNum} — ${visit.priority.label} &nbsp;·&nbsp; ${isoToDutch(visitDate)} &nbsp;·&nbsp; leeftijd ${visitAge}</td>`;
+      tbody.appendChild(consultTr);
+
+      let itemNum = 0;
       for (const it of visit.items) {
-        const wrap = document.createElement('div');
-        wrap.className = 'vaccine-wrap';
-        const line = document.createElement('div');
-        line.className = 'vaccine-line';
-        line.innerHTML = `
-          <div>
-            <div class="vacc-name">${escapeHtml(it.label)}</div>
-            <div class="vacc-meta">Dosis ${it.doseNum} van ${it.totalDoses} · ${visit.priority.label}</div>
-          </div>
-          <button type="button" class="explain-btn">Uitleg &amp; advies</button>
+        itemNum++;
+        rowIdx++;
+        const rowId = `${visitNum}.${itemNum}`;
+        const route = ADMIN_ROUTE[it.code] || 'i.m.';
+
+        // Vaccine rij
+        const tr = document.createElement('tr');
+        tr.className = 'row-vaccine';
+        tr.dataset.rowId = rowId;
+        tr.innerHTML = `
+          <td class="td-num">${escHtml(rowId)}</td>
+          <td class="td-when">${isoToDutch(visitDate)}</td>
+          <td class="td-age">${escHtml(visitAge)}</td>
+          <td class="td-vac">
+            <div class="vac-name">${escHtml(it.label)}</div>
+            <div class="vac-meta">${escHtml(route)}</div>
+          </td>
+          <td class="td-dose">${it.doseNum} / ${it.totalDoses}</td>
+          <td class="td-status"><span class="md3-chip ${PRI_CHIP[visit.priority.key] || ''}">${escHtml(visit.priority.label)}</span></td>
+          <td class="td-chevron"><span class="chevron" id="chev-${escHtml(rowId)}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </span></td>
         `;
-        const expl = document.createElement('div');
-        expl.className = 'vaccine-explanation';
-        const btn = line.querySelector('button');
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          toggleExplanation(it, res, input, btn, line, expl);
-        });
-        wrap.appendChild(line);
-        wrap.appendChild(expl);
-        vBox.appendChild(wrap);
+        tr.addEventListener('click', () => toggleAdvice(rowId, it, input, res, visitDate, visitAge));
+
+        // Advies-rij (verborgen)
+        const advTr = document.createElement('tr');
+        advTr.className = 'row-advice';
+        advTr.id = `adv-${rowId}`;
+        advTr.style.display = 'none';
+        advTr.innerHTML = `<td colspan="7"><div class="advice-inner" id="adv-inner-${escHtml(rowId)}"></div></td>`;
+
+        tbody.appendChild(tr);
+        tbody.appendChild(advTr);
       }
-      out.appendChild(block);
     }
 
-    // PDF-knop tonen
-    const pdfBtn = $('download-pdf');
-    if (pdfBtn) pdfBtn.style.display = 'inline-block';
-  }
-
-  function closeExplanation(expl) {
-    const wrap = expl.parentElement;
-    const line = wrap ? wrap.querySelector('.vaccine-line') : null;
-    const b = line ? line.querySelector('.explain-btn') : null;
-    expl.classList.remove('visible');
-    if (line) line.classList.remove('expanded');
-    if (b) {
-      b.classList.remove('active');
-      b.textContent = 'Uitleg & advies';
-    }
-  }
-
-  function openExplanation(item, res, input, btn, line, expl) {
-    // Bouw inhoud altijd opnieuw op vanaf scratch (zo voorkomen we stapeling)
-    expl.innerHTML = '';
-    const det = document.createElement('div');
-    det.className = 'det-block';
-    det.textContent = buildDeterministicExplanation(item, res, input);
-    expl.appendChild(det);
-
-    if (getApiKey()) {
-      const aiBlock = document.createElement('div');
-      aiBlock.className = 'ai-block';
-      aiBlock.innerHTML = '<div class="ai-label">AI-toelichting (Claude)</div><div class="ai-body">…</div>';
-      expl.appendChild(aiBlock);
-      streamFromAnthropic(buildPromptForVaccine(item, res, input), aiBlock.querySelector('.ai-body'), true);
-    }
-
-    expl.classList.add('visible');
-    line.classList.add('expanded');
-    btn.classList.add('active');
-    btn.textContent = 'Verberg uitleg';
-  }
-
-  function toggleExplanation(item, res, input, btn, line, expl) {
-    const isOpen = expl.classList.contains('visible');
-
-    // Sluit ALLE andere open uitklappen, behalve deze
-    document.querySelectorAll('.vaccine-explanation.visible').forEach((el) => {
-      if (el !== expl) closeExplanation(el);
-    });
-
-    if (isOpen) {
-      closeExplanation(expl);
+    // Interval-banner (indien meerdere doses)
+    const banner = $('interval-banner');
+    const multiDose = res.items.filter((it) => it.totalDoses > 1);
+    if (multiDose.length) {
+      banner.classList.add('visible');
+      $('interval-banner-text').textContent =
+        'Minimuminterval tussen primaire doses: 4 weken. Minimuminterval voor laatste booster: 4-6 maanden (afhankelijk van vaccin). Zie RIVM-leidraad voor exacte intervallen per antigen.';
     } else {
-      openExplanation(item, res, input, btn, line, expl);
+      banner.classList.remove('visible');
     }
   }
 
-  function escapeHtml(s) {
-    return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // ── Toggle advice rij ─────────────────────────────────────────────────
+  function toggleAdvice(rowId, item, input, res, visitDate, visitAge) {
+    const advTr   = document.getElementById(`adv-${rowId}`);
+    const chevEl  = document.getElementById(`chev-${rowId}`);
+    const vaccRow = advTr.previousElementSibling;
+    const isOpen  = openRowId === rowId;
+
+    // Sluit huidige open rij
+    if (openRowId) {
+      const prevAdv  = document.getElementById(`adv-${openRowId}`);
+      const prevChev = document.getElementById(`chev-${openRowId}`);
+      const prevRow  = prevAdv?.previousElementSibling;
+      if (prevAdv)  prevAdv.style.display = 'none';
+      if (prevChev) prevChev.classList.remove('open');
+      if (prevRow)  prevRow.classList.remove('active');
+      openRowId = null;
+    }
+
+    if (isOpen) return; // was al open → alleen sluiten
+
+    // Open nieuwe rij
+    openRowId = rowId;
+    vaccRow.classList.add('active');
+    chevEl.classList.add('open');
+    advTr.style.display = '';
+
+    // Vul inhoud (altijd vers opbouwen)
+    const inner = document.getElementById(`adv-inner-${rowId}`);
+    const explanation = buildExplanation(item, input, res);
+    inner.innerHTML = `
+      <div class="advice-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div class="advice-body">
+        <div class="advice-title">Uitleg &amp; advies — ${escHtml(item.label)}</div>
+        <div class="advice-text" id="adv-text-${escHtml(rowId)}">${escHtml(explanation)}</div>
+        <div class="advice-refs">↗ RIVM Leidraad inhaalvaccinaties 2024</div>
+        <div class="advice-actions">
+          <button class="md3-btn md3-btn-text" style="font-size:12px;padding:4px 8px" onclick="event.stopPropagation();document.getElementById('adv-${rowId}').style.display='none';document.getElementById('chev-${rowId}').classList.remove('open');this.closest('tr').previousElementSibling.classList.remove('active');window._openRowId=null;">Sluiten</button>
+        </div>
+      </div>
+    `;
+
+    // Optionele AI-toelichting
+    if (getApiKey()) {
+      const textEl = document.getElementById(`adv-text-${rowId}`);
+      const aiDiv  = document.createElement('div');
+      aiDiv.style.cssText = 'margin-top:10px;padding-top:8px;border-top:1px dashed var(--md-outline-variant);color:var(--md-secondary);white-space:pre-wrap;font-size:12.5px';
+      aiDiv.textContent = '…';
+      textEl.parentElement.insertBefore(aiDiv, textEl.nextSibling);
+      streamFromAnthropic(buildAIPrompt(item, input, res), aiDiv);
+    }
   }
 
-  // ----- Chat -----
-  const chatLog = $('chat-log');
-  const chatForm = $('chat-form');
-  const chatInput = $('chat-input');
-
-  function addMsg(role, body) {
-    const div = document.createElement('div');
-    div.className = `chat-msg ${role}`;
-    div.innerHTML = `<div class="who">${role === 'user' ? 'Vraag' : 'Adviseur'}</div><div class="body"></div>`;
-    div.querySelector('.body').textContent = body;
-    chatLog.appendChild(div);
-    chatLog.scrollTop = chatLog.scrollHeight;
-    return div.querySelector('.body');
-  }
-
-  function buildDeterministicExplanation(item, res, input) {
+  // ── Uitleg opbouwen ───────────────────────────────────────────────────
+  function buildExplanation(item, input, res) {
     const ageY = res.patient.ageYears, ageM = res.patient.ageMonths;
-    const lines = [];
-    lines.push(`Vaccin: ${item.label}`);
-    lines.push(`Dosis: ${item.doseNum} van ${item.totalDoses} · Prioriteit: ${item.priority.label}`);
-    lines.push('');
-    lines.push('Klinische rationale:');
-    lines.push(item.rationale);
-    lines.push('');
-    lines.push('Context:');
-    lines.push(`• Leeftijd: ${ageY} jaar (${ageM} mnd)`);
-    lines.push(`• Herkomst: ${input.country}${res.patient.tbcRisk ? ' (TBC-risicoland)' : ''}`);
-    if (input.noDocs) lines.push('• Geen documenten — behandeld als volledig niet-gevaccineerd.');
-    if (input.immuun) lines.push('• Immuundeficiëntie — let op contra-indicaties levende vaccins.');
-    if (input.prematuur) lines.push('• Prematuur — vaccineer op kalenderleeftijd, niet op gecorrigeerde leeftijd.');
-    lines.push('');
-    lines.push('Minimuminterval / planning: volg RVP-regels (4 weken tussen primaire doses, 6 maanden voor laatste booster waar geïndiceerd).');
+    const lines = [
+      item.rationale,
+      '',
+      `Leeftijd: ${ageY} jr (${ageM} mnd)${input.dob ? '' : ''}`,
+      `Herkomst: ${input.country}${res.patient.tbcRisk ? ' (TBC-risicoland)' : ''}`,
+    ];
+    if (input.noDocs)   lines.push('Geen vaccinatiedocumenten — behandeld als volledig niet-gevaccineerd.');
+    if (input.immuun)   lines.push('⚠ Immuundeficiëntie — overleg contra-indicaties levende vaccins.');
+    if (input.prematuur)lines.push('Prematuriteit — vaccineer op kalenderleeftijd.');
+    lines.push('', 'Minimuminterval: 4 wkn tussen primaire doses; 6 mnd voor eindbooster waar van toepassing (RVP-richtlijn).');
     return lines.join('\n');
   }
 
-  function buildPromptForVaccine(item, res, input) {
+  function buildAIPrompt(item, input, res) {
     return [
-      'Je bent een ervaren Jeugdarts KNMG. Geef een beknopte, klinisch correcte toelichting (max 250 woorden) op het advies hieronder. Gebruik de RIVM-leidraad inhaalvaccinaties 2024 als basis. Antwoord in het Nederlands.',
+      'Je bent een ervaren Jeugdarts KNMG. Geef een beknopte klinisch correcte toelichting (max 220 woorden). Gebruik de RIVM-leidraad inhaalvaccinaties 2024. Antwoord in het Nederlands.',
       '',
       `Vaccin: ${item.label}, dosis ${item.doseNum}/${item.totalDoses}, prioriteit ${item.priority.label}.`,
       `Patiënt: ${res.patient.ageYears} jr (${res.patient.ageMonths} mnd), herkomst ${input.country}${res.patient.tbcRisk ? ' (TBC-risicoland)' : ''}.`,
-      `Bijzonderheden: ${[
-        input.immuun && 'immuundeficiëntie',
-        input.prematuur && 'prematuur',
-        input.zwanger && 'zwanger',
-        input.aspleen && 'asplenie',
-        input.hepBmoeder && 'HepB+ moeder',
-        input.noDocs && 'documenten ontbreken',
-      ].filter(Boolean).join(', ') || 'geen'}.`,
-      `Aanvullende notities: ${input.notes || '-'}`,
-      '',
-      'Behandel: indicatie, contra-indicaties, intervallen, praktische uitvoering, en aandachtspunten voor ouders.',
+      `Bijzonderheden: ${[input.immuun&&'immuundeficiëntie',input.prematuur&&'prematuur',input.zwanger&&'zwanger',input.aspleen&&'asplenie',input.hepBmoeder&&'HepB+ moeder',input.noDocs&&'documenten ontbreken'].filter(Boolean).join(', ')||'geen'}.`,
+      'Behandel: indicatie, contra-indicaties, intervallen, praktische uitvoering, aandachtspunten voor ouders.',
     ].join('\n');
   }
 
-  chatForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const q = chatInput.value.trim();
-    if (!q) return;
-    addMsg('user', q);
-    chatInput.value = '';
-    const target = addMsg('assistant', deterministicAnswer(q));
-    if (getApiKey() && lastResult) {
-      streamFromAnthropic(buildFreeFormPrompt(q), target);
-    }
-  });
+  // ── Anthropic API (BYOK, optioneel) ──────────────────────────────────
+  function getApiKey() { return sessionStorage.getItem('anthropic_key') || localStorage.getItem('anthropic_api_key') || ''; }
 
-  function deterministicAnswer(q) {
-    if (!lastResult) {
-      return 'Genereer eerst een schema; dan kan ik gerichte uitleg geven. Algemene RIVM-richtlijnen: minimuminterval tussen primaire doses 4 weken; levende vaccins ≥ 4 weken uit elkaar of op dezelfde dag; hexavalent voor < 4 jr, daarna DTP-IPV los.';
-    }
-    return 'Op basis van het huidige schema: zie de klinische rationale per vaccin. Voor uitgebreide AI-toelichting: voeg een Anthropic API-sleutel toe in het paneel onder de chat.';
-  }
-
-  function buildFreeFormPrompt(q) {
-    const r = lastResult, i = lastInput;
-    return [
-      'Je bent een Jeugdarts KNMG. Beantwoord de vraag op basis van de RIVM-leidraad inhaalvaccinaties 2024. Antwoord in het Nederlands, beknopt en klinisch.',
-      '',
-      `Patiëntcontext: ${r.patient.ageYears} jr (${r.patient.ageMonths} mnd), herkomst ${i.country}${r.patient.tbcRisk ? ' (TBC-risicoland)' : ''}, geslacht ${i.sex}.`,
-      `Bijzonderheden: ${[i.immuun && 'immuundeficiëntie', i.prematuur && 'prematuur', i.zwanger && 'zwanger', i.aspleen && 'asplenie', i.noDocs && 'geen documenten'].filter(Boolean).join(', ') || 'geen'}.`,
-      `Schema: ${r.items.map((x) => `${x.label} dosis ${x.doseNum}/${x.totalDoses} (${x.priority.label})`).join('; ')}.`,
-      '',
-      `Vraag: ${q}`,
-    ].join('\n');
-  }
-
-  // ----- Anthropic API (optioneel, BYOK) -----
-  function getApiKey() { return localStorage.getItem('anthropic_api_key') || ''; }
-  $('save-key').addEventListener('click', () => {
-    const v = $('api-key').value.trim();
-    if (v) {
-      localStorage.setItem('anthropic_api_key', v);
-      $('api-key').value = '';
-      addMsg('assistant', 'API-sleutel opgeslagen (lokaal). AI-toelichting is nu actief.');
-    } else {
-      localStorage.removeItem('anthropic_api_key');
-      addMsg('assistant', 'API-sleutel verwijderd.');
-    }
-  });
-
-  async function streamFromAnthropic(userPrompt, targetEl, replace = false) {
+  async function streamFromAnthropic(prompt, targetEl) {
     const key = getApiKey();
-    if (!key) return;
-    if (replace) targetEl.textContent = '';
-    else targetEl.textContent += '\n\n— AI-toelichting —\n';
+    if (!key) { targetEl.remove(); return; }
     try {
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -347,32 +369,25 @@
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true',
         },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 600,
-          messages: [{ role: 'user', content: userPrompt }],
-        }),
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500, messages: [{ role: 'user', content: prompt }] }),
       });
-      if (!resp.ok) {
-        targetEl.textContent += `\n[API-fout ${resp.status}: ${await resp.text()}]`;
-        return;
-      }
+      if (!resp.ok) { targetEl.textContent = `[API-fout ${resp.status}]`; return; }
       const data = await resp.json();
-      const text = (data.content || []).map((b) => b.text || '').join('');
-      targetEl.textContent += text;
-      if (chatLog.contains(targetEl)) chatLog.scrollTop = chatLog.scrollHeight;
+      targetEl.textContent = (data.content || []).map((b) => b.text || '').join('');
     } catch (err) {
-      targetEl.textContent += `\n[Netwerkfout: ${err.message}]`;
+      targetEl.textContent = `[Fout: ${err.message}]`;
     }
   }
 
-  // ----- PDF-export -----
+  // ── PDF-knop ──────────────────────────────────────────────────────────
   $('download-pdf').addEventListener('click', () => {
     if (!lastResult || !lastInput) return;
-    if (!window.jspdf || !window.PDFExport) {
-      alert('PDF-bibliotheek niet geladen. Probeer de pagina te verversen.');
-      return;
-    }
+    if (!window.jspdf || !window.PDFExport) { alert('PDF-bibliotheek niet geladen. Ververs de pagina.'); return; }
     window.PDFExport.generate(lastResult, lastInput, COUNTRIES);
   });
+
+  // ── Helpers ───────────────────────────────────────────────────────────
+  function escHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
 })();
