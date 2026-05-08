@@ -9,8 +9,10 @@ window.Scheduler = (function () {
     M6: { key: '6m', label: '+ 6 maanden', cssClass: 'pri-6m', offsetMonths: 6 },
   };
 
-  const MAX_VACCINES_PER_VISIT = 3;
-  const SOFT_MAX = 2; // streef naar 2; max 3 toegestaan
+  // RIVM-leidraad: praktische bovengrens 3 prikken per consult.
+  // Standaardadvies: 2 prikken per bezoek (verlaagt belasting/pijn).
+  // Minimum: 1 (bv. bij angst, eerder vasovagale reactie).
+  const DEFAULT_MAX_PER_VISIT = 2;
 
   function ageInMonths(dob, ref) {
     const a = new Date(dob), b = new Date(ref);
@@ -201,8 +203,9 @@ window.Scheduler = (function () {
       });
     }
 
-    // ===== Inplannen in bezoeken (max 2-3 per visite) =====
-    const visits = scheduleVisits(items);
+    // ===== Inplannen in bezoeken =====
+    const maxPerVisit = Math.max(1, Math.min(3, parseInt(input.maxPerVisit, 10) || DEFAULT_MAX_PER_VISIT));
+    const visits = scheduleVisits(items, maxPerVisit);
 
     return {
       patient: {
@@ -213,26 +216,48 @@ window.Scheduler = (function () {
     };
   }
 
-  // Verdeel items per prioriteits-bucket over bezoeken; max 3, streef 2 per bezoek.
-  function scheduleVisits(items) {
-    const buckets = {};
-    for (const it of items) {
-      const k = it.priority.key;
-      if (!buckets[k]) buckets[k] = { priority: it.priority, items: [] };
-      buckets[k].items.push(it);
-    }
+  // Verdeel items per prioriteits-bucket over bezoeken.
+  // Overflow boven `maxPerVisit` schuift door naar de volgende bucket
+  // (klinisch veiliger dan twee bezoeken op dezelfde datum).
+  // De laatste bucket (+6m) wordt zo nodig opgesplitst in extra maanden.
+  function scheduleVisits(items, maxPerVisit) {
     const order = ['direct', '1m', '3m', '6m'];
+    const PRI_BY_KEY = {
+      direct: PRIORITY.DIRECT, '1m': PRIORITY.M1, '3m': PRIORITY.M3, '6m': PRIORITY.M6,
+    };
+    const buckets = { direct: [], '1m': [], '3m': [], '6m': [] };
+    for (const it of items) buckets[it.priority.key].push(it);
+
+    // Cascade overflow van lagere offset → hogere offset
+    for (let i = 0; i < order.length - 1; i++) {
+      const k = order[i], next = order[i + 1];
+      while (buckets[k].length > maxPerVisit) {
+        const moved = buckets[k].pop();
+        moved.priority = PRI_BY_KEY[next];
+        buckets[next].unshift(moved);
+      }
+    }
+
     const visits = [];
-    for (const key of order) {
-      const b = buckets[key];
-      if (!b) continue;
-      const cap = b.items.length <= SOFT_MAX ? SOFT_MAX : MAX_VACCINES_PER_VISIT;
-      for (let i = 0; i < b.items.length; i += cap) {
-        visits.push({
-          priority: b.priority,
-          subIndex: Math.floor(i / cap),
-          items: b.items.slice(i, i + cap),
-        });
+    for (const k of order) {
+      const arr = buckets[k];
+      if (!arr.length) continue;
+      // 6m: bij overflow extra maanden toevoegen (+6, +7, +8 …)
+      if (k === '6m' && arr.length > maxPerVisit) {
+        for (let i = 0; i < arr.length; i += maxPerVisit) {
+          const extra = Math.floor(i / maxPerVisit);
+          const pri = extra === 0 ? PRIORITY.M6 : {
+            key: `${6 + extra}m`,
+            label: `+ ${6 + extra} maanden`,
+            cssClass: 'pri-6m',
+            offsetMonths: 6 + extra,
+          };
+          const slice = arr.slice(i, i + maxPerVisit);
+          slice.forEach((s) => (s.priority = pri));
+          visits.push({ priority: pri, items: slice });
+        }
+      } else {
+        visits.push({ priority: PRI_BY_KEY[k], items: arr });
       }
     }
     return visits;

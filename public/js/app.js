@@ -125,10 +125,21 @@
       aspleen:   !!fd.get('aspleen'),
       hepBmoeder:!!fd.get('hepBmoeder'),
       notes:     fd.get('notes') || '',
+      maxPerVisit: parseInt(fd.get('maxPerVisit') || '2', 10),
     };
 
     lastResult = window.Scheduler.generate(lastInput);
     renderSchedule(lastResult, lastInput);
+  });
+
+  // Bij wijziging van max prikken/consult: schema direct herberekenen
+  document.querySelectorAll('input[name="maxPerVisit"]').forEach((r) => {
+    r.addEventListener('change', () => {
+      if (!lastInput) return;
+      lastInput.maxPerVisit = parseInt(r.value, 10);
+      lastResult = window.Scheduler.generate(lastInput);
+      renderSchedule(lastResult, lastInput);
+    });
   });
 
   // Reset: verberg schema
