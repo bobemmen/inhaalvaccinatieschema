@@ -153,16 +153,18 @@
 
   // ── Toedieningsweg per vaccin ─────────────────────────────────────────
   const ADMIN_ROUTE = {
-    'DKTP-Hib-HepB': 'i.m. · bovenbeen / deltoid',
+    'DKTP-Hib-HepB': 'i.m. · anterolateraal bovenbeen (< 12 mnd) of deltoid',
     'DTP-IPV':        'i.m. · deltoid',
     'HepB-mono':      'i.m. · deltoid',
+    'MenB':           'i.m. · deltoid of anterolateraal bovenbeen',
     'BMR':            's.c. · bovenarm',
     'MenACWY':        'i.m. · deltoid',
-    'Pneumokokken':   'i.m. · bovenbeen / deltoid',
+    'Pneumokokken':   'i.m. · anterolateraal bovenbeen (< 12 mnd) of deltoid',
     'HPV':            'i.m. · deltoid',
     'BCG':            'i.d. · linker bovenarm',
+    'Hib-mono':       'i.m. · deltoid',
     'Varicella':      's.c. · bovenarm',
-    'Rotavirus':      'oraal',
+    'Rotavirus':      'oraal (niet injecteren)',
   };
 
   // ── Prioriteit → chip class ───────────────────────────────────────────
@@ -278,7 +280,7 @@
     if (multiDose.length) {
       banner.classList.add('visible');
       $('interval-banner-text').textContent =
-        'Minimuminterval tussen primaire doses: 4 weken. Minimuminterval voor laatste booster: 4-6 maanden (afhankelijk van vaccin). Zie RIVM-leidraad voor exacte intervallen per antigen.';
+        'Minimumintervallen (RIVM-leidraad 2024): primaire doses ≥ 4 weken; DKTP-booster ≥ 6 mnd na laatste primaire dosis; PCV-booster ≥ 8 wkn na serie; HPV (2-dose) minimaal 5 mnd interval; Rotavirus: alle doses vóór 24 levensweken (strikte grens). Controleer altijd de actuele RIVM-leidraad per antigen.';
     } else {
       banner.classList.remove('visible');
     }
@@ -341,16 +343,21 @@
   // ── Uitleg opbouwen ───────────────────────────────────────────────────
   function buildExplanation(item, input, res) {
     const ageY = res.patient.ageYears, ageM = res.patient.ageMonths;
+    const route = ADMIN_ROUTE[item.code] || 'i.m.';
     const lines = [
       item.rationale,
       '',
-      `Leeftijd: ${ageY} jr (${ageM} mnd)${input.dob ? '' : ''}`,
+      `── Patiëntcontext ──`,
+      `Leeftijd: ${ageY} jr (${ageM} mnd)`,
       `Herkomst: ${input.country}${res.patient.tbcRisk ? ' (TBC-risicoland)' : ''}`,
+      `Toedieningsweg: ${route}`,
     ];
-    if (input.noDocs)   lines.push('Geen vaccinatiedocumenten — behandeld als volledig niet-gevaccineerd.');
-    if (input.immuun)   lines.push('⚠ Immuundeficiëntie — overleg contra-indicaties levende vaccins.');
-    if (input.prematuur)lines.push('Prematuriteit — vaccineer op kalenderleeftijd.');
-    lines.push('', 'Minimuminterval: 4 wkn tussen primaire doses; 6 mnd voor eindbooster waar van toepassing (RVP-richtlijn).');
+    if (input.noDocs)    lines.push('⚠ Geen vaccinatiedocumenten — behandeld als volledig niet-gevaccineerd (RIVM-leidraad).');
+    if (input.immuun)    lines.push('⚠ Immuundeficiëntie — overleg contra-indicaties levende vaccins (BMR, BCG, varicella, rotavirus).');
+    if (input.prematuur) lines.push('⚠ Prematuriteit — vaccineer op kalenderleeftijd (niet gecorrigeerde leeftijd), conform RVP-richtlijn.');
+    if (input.hepBmoeder)lines.push('⚠ HepB-positieve moeder — versneld HepB-schema + HBIg + controle serologie op 9-12 mnd.');
+    if (input.aspleen)   lines.push('⚠ Asplenie — ook PPV23 (pneumokokken polysacharide) overwegen ≥ 2 jr; levenslang verhoogd risico.');
+    lines.push('', 'Bron: RIVM Leidraad inhaalvaccinaties 2024 · RVP uitvoeringsrichtlijnen.');
     return lines.join('\n');
   }
 
