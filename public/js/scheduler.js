@@ -56,20 +56,20 @@ window.Scheduler = (function () {
       warnings.push('Immuundeficiëntie/HIV: levende vaccins (BMR, BCG, varicella, rotavirus) zijn relatief of absoluut gecontra-indiceerd. Overleg met kinderarts/infectioloog vóór toediening.');
     }
     if (pregnant) {
-      warnings.push('Zwangerschap: levende vaccins (BMR, BCG, varicella, rotavirus) gecontra-indiceerd. Geïnactiveerde vaccins (DTP-IPV, HepB, HPV) bij voorkeur uitstellen tot post partum, tenzij klinisch geïndiceerd (bijv. dT/kinkhoest in 3e trimester).');
+      warnings.push('Zwangerschap: levende vaccins (BMR, BCG, varicella, rotavirus) gecontra-indiceerd. Geïnactiveerde vaccins (DKTP, HepB, HPV) bij voorkeur uitstellen tot post partum, tenzij klinisch geïndiceerd (bijv. dKT/Boostrix in 3e trimester voor maternale kinkhoestvaccinatie).');
     }
     if (input.hepBmoeder) {
       warnings.push('HepB-positieve moeder: kind moet binnen 24 uur na geboorte HBIg én HepB-vaccin ontvangen hebben (versneld schema 0-1-2-12 mnd). Controleer HBsAg, anti-HBs en HBeAg bij kind op 9-12 maanden. Overleg infectioloog/kinderarts.');
     }
 
-    // ===== DKTP-Hib-HepB / DTP-IPV =====
+    // ===== DKTP-Hib-HepB (< 4 jr) / DKTP (≥ 4 jr) =====
     // RIVM leidraad 2024: hexavalent t/m leeftijd < 4 jaar (48 mnd).
     // Doeldoses afhankelijk van leeftijd bij start inhaalschema:
     //   < 6 mnd  → 3 primaire doses + 1 booster op ~11 mnd = 4 doses
     //   6-11 mnd → 2 primaire doses + 1 booster = 3 doses
     //  12-23 mnd → 2 doses (interval ≥ 8 weken)
     //  24-47 mnd → 1 dosis volstaat
-    //   ≥ 48 mnd → DTP-IPV (zie hieronder)
+    //   ≥ 48 mnd → DKTP (Boostrix-Polio; zie hieronder)
     // Minimuminterval primaire doses: 4 weken. Booster: ≥ 6 mnd na laatste primaire dosis.
     const hexDocs = +(docs['DKTP-Hib-HepB'] || 0);
     if (ageM < 48) {
@@ -102,10 +102,10 @@ Minimuminterval primaire doses: 4 weken. Toediening: i.m. anterolateraal bovenbe
         });
       }
     } else {
-      // ≥ 4 jaar: DTP-IPV (tetravalent; Hib niet langer geïndiceerd)
-      // Tel alle eerder ontvangen DTP-houdende doses mee.
-      const dtpTotal = hexDocs + +(docs['DTP-IPV'] || 0);
-      const dtpIPVDocs = +(docs['DTP-IPV'] || 0);
+      // ≥ 4 jaar: DKTP (Boostrix-Polio = dTpa-IPV; tetravalent, zonder Hib/HepB)
+      // Tel alle eerder ontvangen DKTP-houdende doses mee (hexavalent + DKTP).
+      const dtpTotal = hexDocs + +(docs['DKTP'] || 0);
+      const dktpDocs = +(docs['DKTP'] || 0);
       // Inhaal: completeer tot 3 doses als primaire serie niet voltooid.
       // Daarna booster op 10-jarige intervallen (standaard RVP/volwassenen).
       if (dtpTotal < 3) {
@@ -113,13 +113,13 @@ Minimuminterval primaire doses: 4 weken. Toediening: i.m. anterolateraal bovenbe
         const dtpRem = Math.max(0, dtpTarget - dtpTotal);
         for (let i = 0; i < dtpRem; i++) {
           items.push({
-            code: 'DTP-IPV',
-            label: 'DTP-IPV',
-            doseNum: dtpIPVDocs + i + 1,
+            code: 'DKTP',
+            label: 'DKTP (Boostrix-Polio)',
+            doseNum: dktpDocs + i + 1,
             totalDoses: dtpTarget,
             priority: i === 0 ? PRIORITY.DIRECT : (i === 1 ? PRIORITY.M1 : PRIORITY.M6),
-            rationale: `Vanaf 4 jaar DTP-IPV (tetravalent; zonder Hib en zonder HepB). Inhaalschema bij < 3 eerdere DTP-doses: schema 0 – 1 – 6 maanden. Minimuminterval tussen dose 1 en 2: 4 weken; tussen dose 2 en 3: 5 maanden.
-Na voltooide primaire serie (3 doses): booster aanbevolen na 10 jaar (standaard RVP en KNMG-richtlijn volwassenenvaccinatie). Hepatitis B en Hib worden zo nodig apart aangeboden (zie hieronder). Toediening: i.m. deltoid.`,
+            rationale: `Vanaf 4 jaar DKTP (Boostrix-Polio = dTpa-IPV; lager-gedoseerde difterie/tetanus + acellulaire kinkhoest + IPV). Inhaalschema bij < 3 eerdere DKTP-houdende doses: schema 0 – 1 – 6 maanden. Minimuminterval tussen dosis 1 en 2: 4 weken; tussen dosis 2 en 3: 5 maanden.
+Na voltooide primaire serie (3 doses): booster aanbevolen na 10 jaar (standaard RVP en KNMG-richtlijn volwassenenvaccinatie). RVP-boostermomenten: 4 jaar en 9 jaar. Hepatitis B en Hib worden zo nodig apart aangeboden (zie hieronder). Toediening: i.m. deltoid.`,
           });
         }
       }

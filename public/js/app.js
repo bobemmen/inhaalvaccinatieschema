@@ -154,7 +154,7 @@
   // ── Toedieningsweg per vaccin ─────────────────────────────────────────
   const ADMIN_ROUTE = {
     'DKTP-Hib-HepB': 'i.m. · anterolateraal bovenbeen (< 12 mnd) of deltoid',
-    'DTP-IPV':        'i.m. · deltoid',
+    'DKTP':           'i.m. · deltoid',
     'HepB-mono':      'i.m. · deltoid',
     'MenB':           'i.m. · deltoid of anterolateraal bovenbeen',
     'BMR':            's.c. · bovenarm',
