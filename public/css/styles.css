@@ -62,8 +62,10 @@ form input[type="text"], form input[type="date"], form select, form textarea, fo
   background: #fff; color: var(--ink);
 }
 form textarea { resize: vertical; }
-.date-input { font-variant-numeric: tabular-nums; letter-spacing: .03em; }
+.date-input { font-variant-numeric: tabular-nums; letter-spacing: .03em; cursor: pointer; }
 .date-input:invalid:not(:placeholder-shown) { border-color: var(--crit); }
+.flatpickr-calendar { font-family: inherit; }
+.det-block { white-space: pre-wrap; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem 1rem; }
 @media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
 

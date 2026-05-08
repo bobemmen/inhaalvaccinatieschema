@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Inhaalvaccinatie Adviseur — Jeugdarts KNMG</title>
 <link rel="stylesheet" href="{{ asset('css/styles.css') }}" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/themes/airbnb.css" />
 </head>
 <body>
 <header class="topbar">
@@ -29,7 +31,7 @@
           <input type="text" name="name" autocomplete="off" placeholder="Voornaam Achternaam" />
         </label>
         <label>Geboortedatum
-          <input type="text" name="dob" placeholder="dd-mm-jjjj" pattern="\d{2}-\d{2}-\d{4}" maxlength="10" required class="date-input" />
+          <input type="text" name="dob" placeholder="dd-mm-jjjj" required class="date-input" />
         </label>
         <label>Herkomstland
           <select name="country" id="country-select" required>
@@ -37,7 +39,7 @@
           </select>
         </label>
         <label>Aankomstdatum in Nederland
-          <input type="text" name="arrival" placeholder="dd-mm-jjjj" pattern="\d{2}-\d{2}-\d{4}" maxlength="10" required class="date-input" />
+          <input type="text" name="arrival" placeholder="dd-mm-jjjj" required class="date-input" />
         </label>
         <label>Geslacht
           <select name="sex" required>
@@ -48,7 +50,7 @@
           </select>
         </label>
         <label>Datum eerste consult
-          <input type="text" name="visitDate" placeholder="dd-mm-jjjj (optioneel)" pattern="\d{2}-\d{2}-\d{4}" maxlength="10" class="date-input" />
+          <input type="text" name="visitDate" placeholder="dd-mm-jjjj (optioneel)" class="date-input" />
         </label>
       </div>
 
@@ -120,6 +122,8 @@
 </footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+<script src="https://npmcdn.com/flatpickr@4.6.13/dist/l10n/nl.js"></script>
 <script src="{{ asset('js/data.js') }}"></script>
 <script src="{{ asset('js/scheduler.js') }}"></script>
 <script src="{{ asset('js/pdf.js') }}"></script>
