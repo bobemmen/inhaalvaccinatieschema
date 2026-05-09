@@ -17,13 +17,21 @@ Route::post('/api/ai-analyze', function (Request $request) {
         ], 503);
     }
 
+    // content kan string zijn (text-only) of array (text + image vision blocks).
     $payload = $request->validate([
-        'model'      => 'required|string',
-        'max_tokens' => 'required|integer|min:1|max:4096',
-        'messages'   => 'required|array',
-        'messages.*.role'    => 'required|in:user,assistant',
-        'messages.*.content' => 'required|string|max:32000',
+        'model'           => 'required|string',
+        'max_tokens'      => 'required|integer|min:1|max:4096',
+        'messages'        => 'required|array|max:10',
+        'messages.*.role' => 'required|in:user,assistant',
+        'messages.*.content' => 'required',
     ]);
+
+    // Verdere bescherming: limiteer totale request-grootte (vision-payloads
+    // zijn groot vanwege base64-images). Anthropic accepteert tot ~32 MB,
+    // wij hanteren 25 MB als ruime maar veilige bovengrens.
+    if (strlen($request->getContent()) > 25 * 1024 * 1024) {
+        return response()->json(['error' => 'Request te groot (max 25 MB).'], 413);
+    }
 
     $response = Http::withHeaders([
         'x-api-key'         => $apiKey,
