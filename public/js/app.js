@@ -386,29 +386,87 @@
     ].join('\n');
   }
 
-  // ── Anthropic API (BYOK, optioneel) ──────────────────────────────────
-  function getApiKey() { return sessionStorage.getItem('anthropic_key') || localStorage.getItem('anthropic_api_key') || ''; }
+  // ── Anthropic API — server-side proxy + optionele BYOK-fallback ──────
+  // Primair pad: POST /api/ai-analyze (sleutel staat in .env op de server).
+  // Fallback: directe browser-aanroep als sessionStorage/localStorage een
+  // eigen sleutel bevat (BYOK). Zo werkt de app als demo zonder browserconfig.
+  function getClientKey() {
+    return sessionStorage.getItem('anthropic_key') || localStorage.getItem('anthropic_api_key') || '';
+  }
+  function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.content || '';
+  }
 
-  async function streamFromAnthropic(prompt, targetEl) {
-    const key = getApiKey();
-    if (!key) { targetEl.remove(); return; }
+  async function callAnthropic(payload, targetEl) {
+    // Probeer server-proxy
+    try {
+      const resp = await fetch('/api/ai-analyze', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-csrf-token': getCsrfToken(),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const text = (data.content || []).map((b) => b.text || '').join('');
+        if (targetEl) targetEl.textContent = text;
+        return text;
+      }
+      if (resp.status === 503) {
+        // Server heeft geen sleutel — val terug op BYOK indien beschikbaar
+        const clientKey = getClientKey();
+        if (!clientKey) {
+          if (targetEl) targetEl.remove();
+          return null;
+        }
+        return await callAnthropicDirect(payload, clientKey, targetEl);
+      }
+      const errText = await resp.text();
+      if (targetEl) targetEl.textContent = `[API-fout ${resp.status}] ${errText.slice(0, 300)}`;
+      return null;
+    } catch (err) {
+      // Netwerkfout (bv. offline) — probeer BYOK
+      const clientKey = getClientKey();
+      if (clientKey) return await callAnthropicDirect(payload, clientKey, targetEl);
+      if (targetEl) targetEl.textContent = `[Netwerkfout: ${err.message}]`;
+      return null;
+    }
+  }
+
+  async function callAnthropicDirect(payload, apiKey, targetEl) {
     try {
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'x-api-key': key,
+          'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true',
         },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500, messages: [{ role: 'user', content: prompt }] }),
+        body: JSON.stringify(payload),
       });
-      if (!resp.ok) { targetEl.textContent = `[API-fout ${resp.status}]`; return; }
+      if (!resp.ok) {
+        if (targetEl) targetEl.textContent = `[API-fout ${resp.status}]`;
+        return null;
+      }
       const data = await resp.json();
-      targetEl.textContent = (data.content || []).map((b) => b.text || '').join('');
+      const text = (data.content || []).map((b) => b.text || '').join('');
+      if (targetEl) targetEl.textContent = text;
+      return text;
     } catch (err) {
-      targetEl.textContent = `[Fout: ${err.message}]`;
+      if (targetEl) targetEl.textContent = `[Fout: ${err.message}]`;
+      return null;
     }
+  }
+
+  // Wrapper voor de uitleg-accordion (kleine toelichting per vaccin)
+  async function streamFromAnthropic(prompt, targetEl) {
+    await callAnthropic(
+      { model: 'claude-sonnet-4-6', max_tokens: 500, messages: [{ role: 'user', content: prompt }] },
+      targetEl,
+    );
   }
 
   // ── AI-analyse buitenlandse vaccinaties ──────────────────────────────
@@ -422,16 +480,6 @@
 
     if (!text) {
       resultEl.textContent = 'Voer eerst de buitenlandse vaccinatiegeschiedenis in.';
-      return;
-    }
-    const key = getApiKey();
-    if (!key) {
-      resultEl.innerHTML =
-        '<strong>Geen API-sleutel geconfigureerd.</strong>\n\n' +
-        'Open de browserconsole (F12 → tabblad "Console") en plak:\n\n' +
-        '<code style="display:block;padding:6px;background:var(--md-surface);border-radius:4px;margin-top:6px;font-family:monospace;font-size:11.5px">sessionStorage.setItem(\'anthropic_key\', \'sk-ant-…\')</code>\n\n' +
-        'Maak een sleutel aan op <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. ' +
-        'De sleutel wordt alleen lokaal in deze browsersessie opgeslagen.';
       return;
     }
     if (!lastInput || !lastResult) {
@@ -486,32 +534,11 @@
       'Wees voorzichtig: bij twijfel over de samenstelling van een buitenlands vaccin → adviseer serologie of behandel als niet-gevaccineerd (RIVM-uitgangspunt).',
     ].join('\n');
 
-    try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': key,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 2000,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-      });
-      if (!resp.ok) {
-        const errText = await resp.text();
-        resultEl.textContent = `[API-fout ${resp.status}] ${errText.slice(0, 400)}`;
-        return;
-      }
-      const data = await resp.json();
-      const reply = (data.content || []).map((b) => b.text || '').join('').trim();
-      resultEl.textContent = reply || '[Geen antwoord ontvangen]';
-    } catch (err) {
-      resultEl.textContent = `[Netwerkfout: ${err.message}]`;
-    }
+    const reply = await callAnthropic(
+      { model: 'claude-sonnet-4-6', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] },
+      resultEl,
+    );
+    if (reply !== null) resultEl.textContent = reply.trim() || '[Geen antwoord ontvangen]';
   });
 
   // ── PDF-knop ──────────────────────────────────────────────────────────
