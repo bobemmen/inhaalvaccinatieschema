@@ -1,16 +1,16 @@
-// PDF-export met grafische tijdlijn voor het inhaalvaccinatieschema.
+// PDF-export voor het inhaalvaccinatieschema.
 // Gebruikt jsPDF (UMD) van CDN.
 
 window.PDFExport = (function () {
   const A4 = { w: 210, h: 297 }; // mm
   const M = 15; // marge
 
-  const PRIORITY_OFFSETS = { direct: 0, '1m': 1, '3m': 3, '6m': 6 };
   const PRIORITY_COLOR = {
     direct: [192, 50, 43],
-    '1m': [179, 92, 0],
-    '3m': [31, 111, 235],
-    '6m': [23, 138, 78],
+    '1m':   [179, 92, 0],
+    '2m':   [31, 111, 235],
+    '3m':   [31, 111, 235],
+    '6m':   [23, 138, 78],
   };
 
   function generate(result, input, countries) {
@@ -75,9 +75,6 @@ window.PDFExport = (function () {
       y += 4;
     }
 
-    // ===== Tijdlijn =====
-    y = drawTimeline(doc, y, result);
-
     // ===== Tabel met bezoeken =====
     y = drawVisitsTable(doc, y, result);
 
@@ -100,72 +97,6 @@ window.PDFExport = (function () {
     const safe = (input.name || 'patient').replace(/[^a-z0-9]/gi, '_');
     const datestamp = new Date().toISOString().slice(0, 10);
     doc.save(`inhaalschema_${safe}_${datestamp}.pdf`);
-  }
-
-  // Horizontale tijdlijn van Direct (0) → 6 maanden, met markers per bezoek.
-  function drawTimeline(doc, yStart, result) {
-    const titleH = 5;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-    doc.setTextColor(26, 34, 56);
-    doc.text('Tijdlijn', M, yStart + 4);
-
-    const x0 = M + 8;
-    const x1 = A4.w - M - 8;
-    const y = yStart + titleH + 14; // baseline
-    const months = [0, 1, 3, 6];
-    const monthLabels = ['Direct', '+ 1 mnd', '+ 3 mnd', '+ 6 mnd'];
-
-    // Hoofdlijn
-    doc.setDrawColor(180, 188, 204);
-    doc.setLineWidth(0.4);
-    doc.line(x0, y, x1, y);
-
-    // Tikken + labels
-    doc.setFontSize(8);
-    doc.setTextColor(91, 100, 120);
-    for (let i = 0; i < months.length; i++) {
-      const tx = x0 + ((x1 - x0) * months[i]) / 6;
-      doc.line(tx, y - 2, tx, y + 2);
-      doc.text(monthLabels[i], tx, y + 7, { align: 'center' });
-    }
-
-    // Markers per bezoek
-    let visitNum = 0;
-    const labelStacks = {}; // x → aantal labels op die positie
-    for (const visit of result.visits) {
-      visitNum++;
-      const offset = PRIORITY_OFFSETS[visit.priority.key] ?? 0;
-      const tx = x0 + ((x1 - x0) * offset) / 6;
-      const color = PRIORITY_COLOR[visit.priority.key] || [31, 111, 235];
-
-      // Stapelen als meerdere bezoeken op dezelfde priority
-      const stackIdx = labelStacks[offset] || 0;
-      labelStacks[offset] = stackIdx + 1;
-      const dy = stackIdx * 14;
-
-      // Verticale lijn omhoog vanaf as
-      doc.setDrawColor(...color);
-      doc.setLineWidth(0.5);
-      doc.line(tx, y, tx, y - 8 - dy);
-
-      // Cirkel marker
-      doc.setFillColor(...color);
-      doc.circle(tx, y - 8 - dy, 1.6, 'F');
-
-      // Bezoek-label
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
-      doc.setTextColor(...color);
-      doc.text(`Bezoek ${visitNum}`, tx, y - 11 - dy, { align: 'center' });
-
-      // Vaccin-codes onder marker (boven label)
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
-      doc.setTextColor(26, 34, 56);
-      const codes = visit.items.map((it) => it.code).join(', ');
-      const wrapped = doc.splitTextToSize(codes, 36);
-      doc.text(wrapped, tx, y - 14 - dy - (wrapped.length - 1) * 3, { align: 'center' });
-    }
-
-    return y + 12; // ruimte na tijdlijn
   }
 
   function drawVisitsTable(doc, yStart, result) {
