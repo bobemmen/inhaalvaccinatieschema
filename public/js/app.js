@@ -411,6 +411,109 @@
     }
   }
 
+  // ── AI-analyse buitenlandse vaccinaties ──────────────────────────────
+  // Stuurt vrije tekst van patiënt + huidige RVP-context naar Claude Sonnet 4.6
+  // en toont een gestructureerd advies over welke RVP-vaccins al gedekt zijn
+  // door buitenlandse equivalenten (bijv. Pentavalent, OPV, DTwP).
+  $('ai-foreign-btn').addEventListener('click', async () => {
+    const text = ($('foreign-vaccines').value || '').trim();
+    const resultEl = $('ai-foreign-result');
+    resultEl.style.display = 'block';
+
+    if (!text) {
+      resultEl.textContent = 'Voer eerst de buitenlandse vaccinatiegeschiedenis in.';
+      return;
+    }
+    const key = getApiKey();
+    if (!key) {
+      resultEl.innerHTML =
+        '<strong>Geen API-sleutel geconfigureerd.</strong>\n\n' +
+        'Open de browserconsole (F12 → tabblad "Console") en plak:\n\n' +
+        '<code style="display:block;padding:6px;background:var(--md-surface);border-radius:4px;margin-top:6px;font-family:monospace;font-size:11.5px">sessionStorage.setItem(\'anthropic_key\', \'sk-ant-…\')</code>\n\n' +
+        'Maak een sleutel aan op <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. ' +
+        'De sleutel wordt alleen lokaal in deze browsersessie opgeslagen.';
+      return;
+    }
+    if (!lastInput || !lastResult) {
+      resultEl.textContent = 'Genereer eerst het schema (klik "Schema genereren") zodat de AI de patiëntcontext kan meenemen.';
+      return;
+    }
+
+    resultEl.textContent = '⏳ Bezig met AI-analyse (Claude Sonnet 4.6)…';
+
+    const country = COUNTRIES.find((c) => c.code === lastInput.country);
+    const plannedSummary = lastResult.items
+      .map((it) => `- ${it.label} dosis ${it.doseNum}/${it.totalDoses} (prioriteit: ${it.priority.label})`)
+      .join('\n');
+
+    const prompt = [
+      'Je bent een ervaren Jeugdarts KNMG met expertise in inhaalvaccinaties voor migranten/vluchtelingen volgens de RIVM-leidraad inhaalvaccinaties 2024 en de RVP uitvoeringsrichtlijnen. Antwoord in het Nederlands.',
+      '',
+      'TAAK: een patiënt heeft in het thuisland vaccinaties gehad, vaak met andere namen (bv. Pentavalent = DTwP-Hib-HepB; OPV = orale polio; DTaP = DKTP zonder polio; Measles-only = niet gelijk aan BMR). Identificeer welke buitenlandse vaccins equivalent zijn aan welke RVP-vaccins, en geef een aangepast inhaalschema-advies.',
+      '',
+      `PATIËNT-CONTEXT:`,
+      `- Leeftijd: ${lastResult.patient.ageYears} jr (${lastResult.patient.ageMonths} mnd)`,
+      `- Herkomstland: ${country?.name || lastInput.country}${lastResult.patient.tbcRisk ? ' (TBC-hoog-incidentieland)' : ''}`,
+      `- Bijzonderheden: ${[
+          lastInput.immuun && 'immuundeficiëntie',
+          lastInput.prematuur && 'prematuriteit',
+          lastInput.zwanger && 'zwanger',
+          lastInput.aspleen && 'asplenie',
+          lastInput.hepBmoeder && 'HepB+ moeder',
+          lastInput.hivContact && 'HIV-contact',
+        ].filter(Boolean).join(', ') || 'geen'}`,
+      '',
+      `HUIDIG VOORGESTELD INHAALSCHEMA (op basis van "geen documentatie" / wat gebruiker heeft ingevuld):`,
+      plannedSummary || '(geen)',
+      '',
+      `BUITENLANDSE VACCINATIEGESCHIEDENIS (vrije tekst van patiënt/ouder):`,
+      `"""${text}"""`,
+      '',
+      'GEVRAAGDE OUTPUT (gestructureerd, max 450 woorden):',
+      '',
+      '## Conclusie',
+      'Eén alinea: kan het schema worden ingekort, en zo ja waar?',
+      '',
+      '## Equivalenten (buitenland → RVP)',
+      'Per genoemd vaccin: welk RVP-vaccin dekt het, hoeveel doses tellen mee.',
+      '',
+      '## Aanpassingen op het inhaalschema',
+      'Per RVP-vaccin uit het huidige schema: kan dit eruit / minder doses / ongewijzigd.',
+      '',
+      '## Aandachtspunten',
+      'Bv. OPV ≠ IPV maar geeft wel beschermende immuniteit; serologie overwegen bij twijfel; DTwP telt mee als DTaP-equivalent voor primaire serie; mazelen-monovaccin telt niet als 2 BMR-doses.',
+      '',
+      'Wees voorzichtig: bij twijfel over de samenstelling van een buitenlands vaccin → adviseer serologie of behandel als niet-gevaccineerd (RIVM-uitgangspunt).',
+    ].join('\n');
+
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 2000,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+      if (!resp.ok) {
+        const errText = await resp.text();
+        resultEl.textContent = `[API-fout ${resp.status}] ${errText.slice(0, 400)}`;
+        return;
+      }
+      const data = await resp.json();
+      const reply = (data.content || []).map((b) => b.text || '').join('').trim();
+      resultEl.textContent = reply || '[Geen antwoord ontvangen]';
+    } catch (err) {
+      resultEl.textContent = `[Netwerkfout: ${err.message}]`;
+    }
+  });
+
   // ── PDF-knop ──────────────────────────────────────────────────────────
   $('download-pdf').addEventListener('click', () => {
     if (!lastResult || !lastInput) return;

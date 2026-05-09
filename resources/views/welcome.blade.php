@@ -162,6 +162,32 @@
               </div>
             </div>
 
+            <!-- Card 5: Buitenlandse vaccinaties -->
+            <div class="md3-card" style="margin-top:14px">
+              <div class="md3-card-header">
+                <div class="md3-card-num">5</div>
+                <div class="md3-card-titles">
+                  <div class="md3-card-title">Buitenlandse vaccinaties</div>
+                  <div class="md3-card-subtitle">Vrije tekst — AI identificeert equivalenten en past advies aan</div>
+                </div>
+              </div>
+              <div class="md3-card-body">
+                <div class="md3-field">
+                  <label class="md3-label">Vaccins ontvangen in thuisland</label>
+                  <textarea name="foreignVaccines" id="foreign-vaccines" class="md3-textarea" rows="4"
+                    placeholder="Bijv.: 'BCG bij geboorte; OPV op 6 wkn, 10 wkn, 14 wkn; DTwP-Hib-HepB (Pentavalent) 6/10/14 wkn; Mazelen op 9 mnd...'"></textarea>
+                </div>
+                <button type="button" class="md3-btn md3-btn-fill" id="ai-foreign-btn" style="margin-top:8px;width:100%">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                  AI-analyse: equivalenten en aanvullend advies
+                </button>
+                <div class="md3-check-sub" style="margin-top:6px">
+                  Vereist eigen Anthropic API-sleutel (BYOK). Sonnet 4.6 wordt gebruikt voor de redenering.
+                </div>
+                <div id="ai-foreign-result" style="display:none;margin-top:10px;padding:10px;background:var(--md-surface-container);border:1px solid var(--md-outline-variant);border-radius:8px;font-size:12.5px;line-height:1.5;white-space:pre-wrap;color:var(--md-on-surface)"></div>
+              </div>
+            </div>
+
             <div class="input-footer">
               <button type="submit" class="md3-btn md3-btn-fill" style="flex:1">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.37"/></svg>
