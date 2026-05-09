@@ -1,23 +1,28 @@
 /* ── MD3 design tokens ─────────────────────────────────────────────────── */
 :root {
-  --md-primary:               #1a5fb4;
-  --md-on-primary:            #ffffff;
-  --md-primary-container:     #d6e3ff;
-  --md-on-primary-container:  #001848;
-  --md-secondary:             #178a4e;
-  --md-on-secondary:          #ffffff;
-  --md-error:                 #c0322b;
-  --md-on-error:              #ffffff;
-  --md-surface:               #f8f9fc;
-  --md-surface-container:     #eef0f5;
-  --md-surface-container-hi:  #e3e6ed;
-  --md-on-surface:            #1a1c20;
-  --md-on-surface-variant:    #44474e;
-  --md-on-surface-muted:      #74777e;
-  --md-outline-variant:       #c4c7ce;
-  --md-outline:               #74777e;
-  --md-warn-container:        #fff3e0;
-  --md-on-warn-container:     #7a4200;
+  --md-primary:                #1F5A6E;
+  --md-primary-hover:          #0F4C60;
+  --md-on-primary:             #FFFFFF;
+  --md-primary-container:      #D6EAF1;
+  --md-on-primary-container:   #0A3445;
+  --md-accent:                 #2C8090;
+  --md-accent-soft:            #CDE7E8;
+  --md-secondary:              #178a4e;
+  --md-on-secondary:           #ffffff;
+  --md-error:                  #c0322b;
+  --md-on-error:               #ffffff;
+  --md-surface:                #FBFCFD;
+  --md-surface-container:      #F5F7F8;
+  --md-surface-container-hi:   #EFF2F4;
+  --md-surface-container-high: #EFF2F4;
+  --md-surface-container-highest: #E8ECEE;
+  --md-on-surface:             #252B30;
+  --md-on-surface-variant:     #5D6770;
+  --md-on-surface-muted:       #8A9299;
+  --md-outline:                #B5BEC5;
+  --md-outline-variant:        #DCE2E5;
+  --md-warn-container:         #fff3e0;
+  --md-on-warn-container:      #7a4200;
   --md-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
   --radius-sm: 6px;
   --radius-md: 12px;
@@ -28,7 +33,7 @@
   /* priority colours */
   --pri-direct: #c0322b; --pri-direct-bg: #fff0f0;
   --pri-1m:     #b35c00; --pri-1m-bg:     #fff7e6;
-  --pri-3m:     #1a5fb4; --pri-3m-bg:     #f0f4ff;
+  --pri-3m:     #1F5A6E; --pri-3m-bg:     #D6EAF1;
   --pri-6m:     #178a4e; --pri-6m-bg:     #f0faf5;
 }
 
@@ -96,6 +101,15 @@ body {
 .input-footer {
   display: flex; gap: 8px; position: sticky; bottom: 0; padding: 10px 0 14px;
   background: linear-gradient(to top, var(--md-surface) 70%, transparent);
+}
+.input-footer .md3-btn-fill {
+  flex: 1; justify-content: center;
+  padding: 13px 24px; font-size: 15px; font-weight: 600;
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--md-primary) 35%, transparent);
+}
+.input-footer .md3-btn-fill:hover {
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--md-primary) 45%, transparent);
 }
 
 /* ── Schedule column ───────────────────────────────────────────────────── */
@@ -208,7 +222,7 @@ body {
 }
 .md3-btn svg { flex-shrink: 0; }
 .md3-btn-fill   { background: var(--md-primary); color: var(--md-on-primary); }
-.md3-btn-fill:hover { background: color-mix(in srgb, var(--md-primary) 88%, #000); }
+.md3-btn-fill:hover { background: var(--md-primary-hover); }
 .md3-btn-outline { background: transparent; color: var(--md-primary); border: 1px solid var(--md-outline-variant); }
 .md3-btn-outline:hover { background: var(--md-primary-container); }
 .md3-btn-text   { background: transparent; color: var(--md-primary); padding: 7px 10px; }
