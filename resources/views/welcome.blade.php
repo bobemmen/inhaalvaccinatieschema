@@ -178,13 +178,22 @@
                   <textarea name="foreignVaccines" id="foreign-vaccines" class="md3-textarea" rows="4"
                     placeholder="Bijv.: 'BCG bij geboorte; OPV op 6 wkn, 10 wkn, 14 wkn; DTwP-Hib-HepB (Pentavalent) 6/10/14 wkn; Mazelen op 9 mnd...'"></textarea>
                 </div>
+                <div class="md3-field" style="margin-top:10px">
+                  <label class="md3-label">Foto's vaccinatieboekje <span class="md3-label-hint">optioneel · meerdere mogelijk</span></label>
+                  <label for="foreign-images" class="md3-btn md3-btn-outline" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:8px 12px">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Foto's uploaden
+                  </label>
+                  <input type="file" id="foreign-images" multiple accept="image/*" style="display:none" />
+                  <div class="md3-check-sub" style="margin-top:6px">
+                    AI leest scans/foto's van het boekje (Claude Sonnet 4.6 vision). Max 5 foto's, ca. 5 MB per stuk.
+                  </div>
+                  <div id="foreign-images-preview" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+                </div>
                 <button type="button" class="md3-btn md3-btn-fill" id="ai-foreign-btn" style="margin-top:8px;width:100%">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                   AI-analyse: equivalenten en aanvullend advies
                 </button>
-                <div class="md3-check-sub" style="margin-top:6px">
-                  Vereist eigen Anthropic API-sleutel (BYOK). Sonnet 4.6 wordt gebruikt voor de redenering.
-                </div>
                 <div id="ai-foreign-result" style="display:none;margin-top:10px;padding:10px;background:var(--md-surface-container);border:1px solid var(--md-outline-variant);border-radius:8px;font-size:12.5px;line-height:1.5;white-space:pre-wrap;color:var(--md-on-surface)"></div>
               </div>
             </div>

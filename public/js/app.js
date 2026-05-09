@@ -469,17 +469,71 @@
     );
   }
 
+  // ── Foto-uploads voor buitenlandse vaccinatieboekjes ─────────────────
+  // Foto's worden in-memory opgeslagen als base64 + media_type, conform
+  // Anthropic vision-API. Preview-strip toont thumbnail met verwijder-knop.
+  const foreignImages = []; // [{ media_type, data (base64), name, dataUrl }]
+  const MAX_IMAGES = 5;
+  const MAX_BYTES_PER_IMAGE = 5 * 1024 * 1024;
+
+  function renderImagePreview() {
+    const wrap = $('foreign-images-preview');
+    wrap.innerHTML = '';
+    foreignImages.forEach((img, idx) => {
+      const cell = document.createElement('div');
+      cell.style.cssText = 'position:relative;width:64px;height:64px;border-radius:6px;overflow:hidden;border:1px solid var(--md-outline-variant);background:var(--md-surface)';
+      cell.innerHTML = `
+        <img src="${img.dataUrl}" alt="${escHtml(img.name)}" style="width:100%;height:100%;object-fit:cover" />
+        <button type="button" data-idx="${idx}" title="Verwijder"
+          style="position:absolute;top:2px;right:2px;width:18px;height:18px;border:none;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;font-size:11px;line-height:18px;padding:0;cursor:pointer">×</button>
+      `;
+      cell.querySelector('button').addEventListener('click', () => {
+        foreignImages.splice(idx, 1);
+        renderImagePreview();
+      });
+      wrap.appendChild(cell);
+    });
+  }
+
+  $('foreign-images').addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = ''; // reset zodat dezelfde file opnieuw kan worden gekozen
+    for (const file of files) {
+      if (foreignImages.length >= MAX_IMAGES) {
+        alert(`Maximaal ${MAX_IMAGES} foto's tegelijk.`);
+        break;
+      }
+      if (!file.type.startsWith('image/')) {
+        alert(`"${file.name}" is geen afbeelding.`);
+        continue;
+      }
+      if (file.size > MAX_BYTES_PER_IMAGE) {
+        alert(`"${file.name}" is te groot (>${Math.round(MAX_BYTES_PER_IMAGE/1024/1024)} MB).`);
+        continue;
+      }
+      const dataUrl = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      const [meta, base64] = String(dataUrl).split(',');
+      const mediaType = meta.match(/^data:(.+?);base64$/)?.[1] || file.type;
+      foreignImages.push({ media_type: mediaType, data: base64, name: file.name, dataUrl });
+    }
+    renderImagePreview();
+  });
+
   // ── AI-analyse buitenlandse vaccinaties ──────────────────────────────
-  // Stuurt vrije tekst van patiënt + huidige RVP-context naar Claude Sonnet 4.6
-  // en toont een gestructureerd advies over welke RVP-vaccins al gedekt zijn
-  // door buitenlandse equivalenten (bijv. Pentavalent, OPV, DTwP).
+  // Stuurt vrije tekst + (optioneel) foto's van vaccinatieboekje + huidige
+  // RVP-context naar Claude Sonnet 4.6. Ondersteunt vision-blocks voor de foto's.
   $('ai-foreign-btn').addEventListener('click', async () => {
     const text = ($('foreign-vaccines').value || '').trim();
     const resultEl = $('ai-foreign-result');
     resultEl.style.display = 'block';
 
-    if (!text) {
-      resultEl.textContent = 'Voer eerst de buitenlandse vaccinatiegeschiedenis in.';
+    if (!text && foreignImages.length === 0) {
+      resultEl.textContent = 'Voer tekst in of upload minstens één foto van het vaccinatieboekje.';
       return;
     }
     if (!lastInput || !lastResult) {
@@ -514,10 +568,13 @@
       `HUIDIG VOORGESTELD INHAALSCHEMA (op basis van "geen documentatie" / wat gebruiker heeft ingevuld):`,
       plannedSummary || '(geen)',
       '',
-      `BUITENLANDSE VACCINATIEGESCHIEDENIS (vrije tekst van patiënt/ouder):`,
-      `"""${text}"""`,
+      `BUITENLANDSE VACCINATIEGESCHIEDENIS:`,
+      text ? `Vrije tekst: """${text}"""` : '(geen vrije tekst opgegeven)',
+      foreignImages.length
+        ? `\nDe gebruiker heeft ${foreignImages.length} foto('s) van het vaccinatieboekje meegestuurd. Lees de pagina's zorgvuldig — let op vaccinnamen, doses, datums en aantekeningen. Boekjes uit andere landen kunnen in vreemde talen of met andere afkortingen zijn (Cyrillisch, Arabisch, Frans, Spaans, etc.). Vermeld kort wat je in de foto's ziet vóór je het advies geeft.`
+        : '',
       '',
-      'GEVRAAGDE OUTPUT (gestructureerd, max 450 woorden):',
+      'GEVRAAGDE OUTPUT (gestructureerd, max 500 woorden):',
       '',
       '## Conclusie',
       'Eén alinea: kan het schema worden ingekort, en zo ja waar?',
@@ -534,8 +591,22 @@
       'Wees voorzichtig: bij twijfel over de samenstelling van een buitenlands vaccin → adviseer serologie of behandel als niet-gevaccineerd (RIVM-uitgangspunt).',
     ].join('\n');
 
+    // Bouw message-content: foto's eerst (vision blocks), dan tekstprompt.
+    let content;
+    if (foreignImages.length) {
+      content = [
+        ...foreignImages.map((img) => ({
+          type: 'image',
+          source: { type: 'base64', media_type: img.media_type, data: img.data },
+        })),
+        { type: 'text', text: prompt },
+      ];
+    } else {
+      content = prompt; // string-vorm voor text-only
+    }
+
     const reply = await callAnthropic(
-      { model: 'claude-sonnet-4-6', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] },
+      { model: 'claude-sonnet-4-6', max_tokens: 2000, messages: [{ role: 'user', content }] },
       resultEl,
     );
     if (reply !== null) resultEl.textContent = reply.trim() || '[Geen antwoord ontvangen]';
